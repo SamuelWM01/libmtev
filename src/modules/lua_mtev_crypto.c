@@ -84,7 +84,7 @@ mtev_lua_crypto_x509_index_func(lua_State *L) {
   cert = *((X509 **)udata);
   if(!strcmp(k, "signature_algorithm")) {
     int nid;
-    nid = OBJ_obj2nid(cert->sig_alg->algorithm);
+    nid = X509_get_signature_nid(cert);
     lua_pushstring(L, OBJ_nid2sn(nid));
     return 1;
   }
@@ -118,11 +118,7 @@ mtev_lua_crypto_x509_index_func(lua_State *L) {
     EVP_PKEY *pkey;
     pkey = X509_get_pubkey(cert);
     if (pkey == NULL) return 0;
-    else if (pkey->type == EVP_PKEY_RSA && pkey->pkey.rsa)
-      lua_pushinteger(L, BN_num_bits(pkey->pkey.rsa->n));
-    else if (pkey->type == EVP_PKEY_DSA && pkey->pkey.dsa)
-      lua_pushinteger(L, BN_num_bits(pkey->pkey.dsa->p));
-    else lua_pushnil(L);
+    lua_pushinteger(L, EVP_PKEY_bits(pkey));
     EVP_PKEY_free(pkey);
     return 1;
   }
@@ -130,8 +126,8 @@ mtev_lua_crypto_x509_index_func(lua_State *L) {
     EVP_PKEY *pkey;
     pkey = X509_get_pubkey(cert);
     if (pkey == NULL) return 0;
-    else if (pkey->type == EVP_PKEY_RSA) lua_pushstring(L, "rsa");
-    else if (pkey->type == EVP_PKEY_DSA) lua_pushstring(L, "dsa");
+    else if (EVP_PKEY_id(pkey) == EVP_PKEY_RSA) lua_pushstring(L, "rsa");
+    else if (EVP_PKEY_id(pkey) == EVP_PKEY_DSA) lua_pushstring(L, "dsa");
     else lua_pushstring(L, "unknown");
     EVP_PKEY_free(pkey);
     return 1;
@@ -192,27 +188,26 @@ mtev_lua_crypto_ssl_session_index_func(lua_State *L) {
   switch(*k) {
     case 'c':
       if(!strcmp(k, "cipher")) {
-        if(ssl_session->cipher == NULL) {
-          if (((ssl_session->cipher_id) & 0xff000000) == 0x02000000)
-            lua_pushinteger(L, ssl_session->cipher_id & 0xffffff);
-          else
-            lua_pushinteger(L, ssl_session->cipher_id & 0xffff);
-        }
-        else {
-          lua_pushstring(L, ssl_session->cipher->name ?
-                              ssl_session->cipher->name : "unknown");
-        }
+        lua_pushstring(L, SSL_CIPHER_get_name(SSL_get_current_cipher(ssl_session)));
         return 1;
       }
       break;
     case 'm':
       if(!strcmp(k, "master_key")) {
-        lua_pushlstring(L, (char *)ssl_session->master_key,
-                        ssl_session->master_key_length);
+        size_t master_key_len = SSL_SESSION_get_master_key(ssl_session, 0, 0);
+        if (! master_key_len) lua_pushnil(L);
+        else {
+          unsigned char *master_key = malloc(master_key_len);
+          mtevAssert(master_key);
+          SSL_SESSION_get_master_key(ssl_session, master_key, master_key_len);
+          lua_pushlstring(L, (char *) master_key, master_key_len);
+          free(master_key);
+        }
         return 1;
       }
       if(!strcmp(k, "master_key_bits")) {
-        lua_pushinteger(L, ssl_session->master_key_length * 8);
+        size_t master_key_len = SSL_SESSION_get_master_key(ssl_session, 0, 0);
+        lua_pushinteger(L, master_key_len * 8);
         return 1;
       }
       break;
@@ -226,17 +221,18 @@ mtev_lua_crypto_ssl_session_index_func(lua_State *L) {
     case 's':
       if(!strcmp(k, "ssl_version")) {
         const char *s = "unknown";
-        if (ssl_session->ssl_version == SSL2_VERSION) s="SSLv2";
-        else if (ssl_session->ssl_version == SSL3_VERSION) s="SSLv3";
+        int ssl_version = SSL_SESSION_get_protocol_version(ssl_session);
+        if (ssl_version == SSL2_VERSION) s="SSLv2";
+        else if (ssl_version == SSL3_VERSION) s="SSLv3";
 #ifdef TLS1_2_VERSION
-        else if (ssl_session->ssl_version == TLS1_2_VERSION) s="TLSv1.2";
+        else if (ssl_version == TLS1_2_VERSION) s="TLSv1.2";
 #endif
 #ifdef TLS1_1_VERSION
-        else if (ssl_session->ssl_version == TLS1_1_VERSION) s="TLSv1.1";
+        else if (ssl_version == TLS1_1_VERSION) s="TLSv1.1";
 #endif
-        else if (ssl_session->ssl_version == TLS1_VERSION) s="TLSv1";
-        else if (ssl_session->ssl_version == DTLS1_VERSION) s="DTLSv1";
-        else if (ssl_session->ssl_version == DTLS1_BAD_VER) s="DTLSv1-bad";
+        else if (ssl_version == TLS1_VERSION) s="TLSv1";
+        else if (ssl_version == DTLS1_VERSION) s="DTLSv1";
+        else if (ssl_version == DTLS1_BAD_VER) s="DTLSv1-bad";
         lua_pushstring(L, s);
         return 1;
       }
@@ -576,8 +572,7 @@ static int __attribute__((unused)) mtev_lua_crypto_bn_##name(lua_State *L) { \
 static int mtev_lua_crypto_bn_is_negative(lua_State *L) {
   BN_METH_DECL_INT(0);
   lua_pushboolean(L, BN_is_negative(bn));
-  lua_pushboolean(L, bn->neg ? 1 : 0);
-  return 2;
+  return 1;
 }
 static int mtev_lua_crypto_bn_set_negative(lua_State *L) {
   BN_METH_DECL_INT(1);

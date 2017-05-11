@@ -457,7 +457,7 @@ eventer_ssl_get_current_cipher(eventer_ssl_ctx_t *ctx) {
 }
 int
 eventer_ssl_get_method(eventer_ssl_ctx_t *ctx) {
-  return SSL_get_ssl_method(ctx->ssl)->version;
+  return SSL_version(ctx->ssl);
 }
 int
 eventer_ssl_get_local_commonname(eventer_ssl_ctx_t *ctx, char *buff, int len) {
@@ -508,7 +508,7 @@ verify_cb(int ok, X509_STORE_CTX *x509ctx) {
   if(!ok) {
     issuer[0] = '\0';
     if(err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT) {
-      X509_NAME_oneline(X509_get_issuer_name(x509ctx->current_cert), issuer+1, sizeof(issuer)-1);
+      X509_NAME_oneline(X509_get_issuer_name(X509_STORE_CTX_get_current_cert(x509ctx)), issuer+1, sizeof(issuer)-1);
       issuer[0] = ':';
     }
     snprintf(errstr, sizeof(errstr), "verify error:num=%d:%s:depth=%d%s:%s\n", err,
@@ -557,8 +557,7 @@ static void
 eventer_SSL_server_info_callback(const SSL *ssl, int type, int val) {
   eventer_ssl_ctx_t *ctx;
 
-  if (ssl->state != SSL3_ST_SR_CLNT_HELLO_A &&
-      ssl->state != SSL23_ST_SR_CLNT_HELLO_A)
+  if (SSL_get_state(ssl) != TLS_ST_CR_SRVR_HELLO)
     return;
 
   ctx = SSL_get_eventer_ssl_ctx(ssl);
@@ -1088,7 +1087,7 @@ static struct CRYPTO_dynlock_value *dynlock_create(const char *f, int l) {
 static void dynlock_destroy(struct CRYPTO_dynlock_value *lock,
                             const char *f, int l) {
   pthread_mutex_destroy(&lock->lock);
-  CRYPTO_free(lock);
+  OPENSSL_free(lock);
 }
 static void lock_dynamic(int mode, struct CRYPTO_dynlock_value *lock,
                          const char *f, int l) {
