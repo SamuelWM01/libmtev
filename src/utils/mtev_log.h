@@ -207,6 +207,15 @@ API_EXPORT(void)
   abort(); \
 } while(0)
 
+/* To avoid recursive includes, we use 2 here instead of
+ * the MTEV_WATCHDOG_EXIT_SHUTDOWN define.
+ */
+#define mtevQuit(ls,args...) do {\
+  mtev_log_go_synch(); \
+  mtevL((ls), "[TERMINATE] " args); \
+  exit(2); \
+} while(0)
+
 #ifdef NDEBUG
 #error "need to audit mtevAssert usage"
 #define mtevAssert(condition) do {} while(0)

@@ -42,6 +42,8 @@
 #include "eventer/eventer.h"
 #include "mtev_stacktrace.h"
 
+#define MTEV_WATCHDOG_EXIT_SHUTDOWN 2
+
 /*! \fn int mtev_watchdog_prefork_init()
     \brief Prepare the program to split into a child/parent-monitor relationship.
     \return Returns zero on success.

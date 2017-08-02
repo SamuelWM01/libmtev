@@ -44,6 +44,7 @@
 #include "mtev_console.h"
 #include "mtev_tokenizer.h"
 #include "mtev_capabilities_listener.h"
+#include "mtev_watchdog.h"
 
 #include <unistd.h>
 #include <netinet/in.h>
@@ -1100,7 +1101,7 @@ mtev_console_crash(mtev_console_closure_t ncct, int argc, char **argv,
 int
 mtev_console_shutdown(mtev_console_closure_t ncct, int argc, char **argv,
                       mtev_console_state_t *dstate, void *unused) {
-  exit(2);
+  exit(MTEV_WATCHDOG_EXIT_SHUTDOWN);
 }
 int
 mtev_console_restart(mtev_console_closure_t ncct, int argc, char **argv,
